@@ -13,13 +13,66 @@
           });
         }
       });
+
+      // Универсальный компонент для VR-пульта (поддерживает и Gamepad API, и эмуляцию клавиатуры/стрелок)
+      AFRAME.registerComponent('vr-remote-controls', {
+        schema: { speed: { default: 0.3 } },
+        init: function () {
+          this.keys = { forward: false, backward: false, left: false, right: false };
+          
+          // Слушаем клавиатурные события (многие такие пульты шлют стрелки или WASD)
+          window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') this.keys.forward = true;
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') this.keys.backward = true;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.keys.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') this.keys.right = true;
+          });
+          window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') this.keys.forward = false;
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') this.keys.backward = false;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.keys.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') this.keys.right = false;
+          });
+        },
+        tick: function () {
+          const camEl = this.el;
+          const rotation = camEl.object3D.rotation;
+          let moveX = 0;
+          let moveZ = 0;
+
+          // 1. Проверяем стандартный Gamepad API (осевые движения стика)
+          const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+          for (let gp of gamepads) {
+            if (gp && gp.connected) {
+              if (Math.abs(gp.axes[0]) > 0.1) moveX = gp.axes[0];
+              if (Math.abs(gp.axes[1]) > 0.1) moveZ = gp.axes[1];
+            }
+          }
+
+          // 2. Добавляем эмуляцию клавиш
+          if (this.keys.forward) moveZ = -1;
+          if (this.keys.backward) moveZ = 1;
+          if (this.keys.left) moveX = -1;
+          if (this.keys.right) moveX = 1;
+
+          // Если задействован стик или кнопки — двигаем игрока по направлению взгляда
+          if (moveX !== 0 || moveZ !== 0) {
+            const speed = this.data.speed;
+            const cos = Math.cos(rotation.y);
+            const sin = Math.sin(rotation.y);
+
+            camEl.object3D.position.x -= (moveX * cos - moveZ * sin) * speed;
+            camEl.object3D.position.z -= (moveX * sin + moveZ * cos) * speed;
+          }
+        }
+      });
     </script>
   </head>
   <body>
     <a-scene>
-      <!-- Загрузка модели -->
+      <!-- Загрузка оптимизированной легкой модели -->
       <a-assets>
-        <a-asset-item id="botay" src="botay_final.glb"></a-asset-item>
+        <a-asset-item id="botay" src="botay_final_light.glb"></a-asset-item>
       </a-assets>
 
       <!-- Базовое освещение -->
@@ -37,9 +90,9 @@
         <a-text value="Ботайская лошадь\n(Задержите взгляд)" position="0 2.5 0" align="center" width="15" color="#ffffff"></a-text>
       </a-entity>
 
-      <!-- Камера с высокой скоростью и автокликом -->
+      <!-- Камера с поддержкой VR-пульта, высокой скоростью и автокликом -->
       <a-entity id="player" position="0 1.6 3">
-        <a-camera look-controls wasd-controls="acceleration: 400">
+        <a-camera vr-remote-controls look-controls wasd-controls="acceleration: 400">
           <a-cursor raycaster="objects: .clickable" 
                     color="#f97316" 
                     fuse="true" 
