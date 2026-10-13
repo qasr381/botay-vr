@@ -5,87 +5,57 @@
     <title>Botay VR</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script>
-      // Компонент для открытия презентации в новой вкладке
+      // Открытие презентации
       AFRAME.registerComponent('open-presentation', {
         init: function () {
-          this.el.addEventListener('click', function (evt) {
+          this.el.addEventListener('click', function () {
             window.open('presentation.html', '_blank');
           });
         }
       });
 
-      // Надежный компонент движения для геймпада и клавиатуры
-      AFRAME.registerComponent('gamepad-mover', {
-        schema: { speed: { default: 0.25 } },
+      // Авто-ходьба по взгляду / кнопке пульта
+      AFRAME.registerComponent('gaze-walker', {
+        schema: { speed: { default: 0.2 } },
         init: function () {
-          this.keys = { forward: false, backward: false, left: false, right: false };
+          this.isWalking = false;
           
-          window.addEventListener('keydown', (e) => {
-            if (e.code === 'ArrowUp' || e.code === 'KeyW') this.keys.forward = true;
-            if (e.code === 'ArrowDown' || e.code === 'KeyS') this.keys.backward = true;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.keys.left = true;
-            if (e.code === 'ArrowRight' || e.code === 'KeyD') this.keys.right = true;
+          // По клику на экран или кнопку пульта переключаем режим ходьбы (идти / стоять)
+          window.addEventListener('click', () => {
+            this.isWalking = !this.isWalking;
           });
-          window.addEventListener('keyup', (e) => {
-            if (e.code === 'ArrowUp' || e.code === 'KeyW') this.keys.forward = false;
-            if (e.code === 'ArrowDown' || e.code === 'KeyS') this.keys.backward = false;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.keys.left = false;
-            if (e.code === 'ArrowRight' || e.code === 'KeyD') this.keys.right = false;
+          
+          // Также поддерживаем пробел/Enter с клавиатуры или пульта
+          window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+              this.isWalking = !this.isWalking;
+            }
           });
         },
         tick: function () {
-          let moveX = 0;
-          let moveZ = 0;
+          if (!this.isWalking) return;
 
-          // Опрос геймпада (проверяем все подключенные контроллеры и их оси)
-          const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-          for (let i = 0; i < gamepads.length; i++) {
-            const gp = gamepads[i];
-            if (gp && gp.connected && gp.axes) {
-              // Ищем активную ось стика
-              for (let a = 0; a < gp.axes.length; a += 2) {
-                const ax = gp.axes[a] || 0;
-                const ay = gp.axes[a+1] || 0;
-                if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
-                  moveX = ax;
-                  moveZ = ay;
-                  break;
-                }
-              }
-            }
-          }
+          const rig = this.el;
+          const cameraEl = rig.querySelector('a-camera');
+          const yaw = cameraEl ? cameraEl.object3D.rotation.y : 0;
 
-          // Дублируем с клавиатуры / кнопок
-          if (this.keys.forward) moveZ = -1;
-          if (this.keys.backward) moveZ = 1;
-          if (this.keys.left) moveX = -1;
-          if (this.keys.right) moveX = 1;
+          const speed = this.data.speed;
+          const pos = rig.getAttribute('position');
 
-          if (moveX !== 0 || moveZ !== 0) {
-            const rig = this.el; // Контейнер игрока
-            const cameraEl = rig.querySelector('a-camera');
-            const yaw = cameraEl ? cameraEl.object3D.rotation.y : 0;
-
-            const speed = this.data.speed;
-            const cos = Math.cos(yaw);
-            const sin = Math.sin(yaw);
-
-            // Перемещение относительно направления взгляда
-            rig.object3D.position.x -= (moveX * cos - moveZ * sin) * speed;
-            rig.object3D.position.z -= (moveX * sin + moveZ * cos) * speed;
-          }
+          // Идем строго туда, куда смотрит камера
+          pos.x -= Math.sin(yaw) * speed;
+          pos.z -= Math.cos(yaw) * speed;
+          rig.setAttribute('position', pos);
         }
       });
     </script>
   </head>
   <body>
     <a-scene>
-      <!-- Загрузка модели под твоим именем -->
       <a-assets>
         <a-asset-item id="botay" src="botay_final.glb"></a-asset-item>
       </a-assets>
 
-      <!-- Освещение -->
       <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
       <a-light type="directional" color="#ffffff" intensity="0.8" position="-1 2 1"></a-light>
 
@@ -100,8 +70,8 @@
         <a-text value="Ботайская лошадь\n(Задержите взгляд)" position="0 2.5 0" align="center" width="15" color="#ffffff"></a-text>
       </a-entity>
 
-      <!-- Корневой риг игрока с компонентом движения -->
-      <a-entity id="player" position="0 1.6 3" gamepad-mover>
+      <!-- Камера с компонентом ходьбы -->
+      <a-entity id="player" position="0 1.6 3" gaze-walker>
         <a-camera look-controls wasd-controls="enabled: false">
           <a-cursor raycaster="objects: .clickable" 
                     color="#f97316" 
