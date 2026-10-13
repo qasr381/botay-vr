@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Ботай: Лошадь в центре жизни — 3D Презентация</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script>
+    // Компонент для красивых музейных стендов без помарок и с поддержкой кириллицы
+    AFRAME.registerComponent('html-text-plane', {
+      schema: {
+        title: {type: 'string', default: ''},
+        text: {type: 'string', default: ''}
+      },
+      init: function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+
+        // Фоновый цвет пергамента / музея
+        ctx.fillStyle = '#fdfbf7';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Музейная рамка
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 12;
+        ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+        // Шапка стенда (темно-коричневая плашка)
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(20, 20, canvas.width - 40, 110);
+
+        // Заголовок белым цветом
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 42px sans-serif';
+        ctx.fillText(this.data.title, 50, 90);
+
+        // Основной текст
+        ctx.fillStyle = '#1e293b';
+        
+        // Разделяем текст по разделителю '|'
+        const paragraphs = this.data.text.split('|');
+        let y = 180;
+        
+        paragraphs.forEach(paragraph => {
+          paragraph = paragraph.trim();
+          if (!paragraph) return;
+          
+          let isBullet = paragraph.startsWith('-');
+          let indent = isBullet ? 70 : 50;
+          let maxWidth = 900 - (isBullet ? 20 : 0);
+
+          const words = paragraph.split(' ');
+          let line = '';
+          
+          for(let n = 0; n < words.length; n++) {
+            let testLine = line + words[n] + ' ';
+            let metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && n > 0) {
+              ctx.font = '26px sans-serif';
+              ctx.fillText(line, indent, y);
+              line = words[n] + ' ';
+              y += 42;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.font = '26px sans-serif';
+          ctx.fillText(line, indent, y);
+          y += 50;
+        });
+
+        const texture = new THREE.CanvasTexture(canvas);
+        this.el.setAttribute('material', 'src', texture);
+        this.el.setAttribute('material', 'shader', 'flat');
+      }
+    });
+  </script>
+</head>
+<body>
+  <a-scene background="color: #0f172a">
+    
+    <!-- Загрузка вашей 3D-модели -->
+    <a-assets>
+      <a-asset-item id="horse-model" src="primeval_horse_nhmw-geo-199500770001.glb"></a-asset-item>
+    </a-assets>
+
+    <!-- Освещение -->
+    <a-light type="ambient" color="#d1d5db"></a-light>
+    <a-light type="directional" position="3 6 -3" color="#ffffff" intensity="0.9"></a-light>
+
+    <!-- Пол (степь) и небо -->
+    <a-plane position="0 0 0" rotation="-90 0 0" width="40" height="40" color="#291b11" roughness="0.9"></a-plane>
+    <a-sky color="#1e293b"></a-sky>
+
+    <!-- Камера с возможностью свободного перемещения -->
+    <a-entity position="0 1.6 6">
+      <a-camera look-controls wasd-controls="acceleration: 25">
+        <a-cursor color="#f97316"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- ЦЕНТРАЛЬНАЯ 3D-МОДЕЛЬ НА ПОСТАМЕНТЕ -->
+    <a-entity position="0 0 0">
+      <a-cylinder position="0 0.1 0" radius="2.2" height="0.2" color="#451a03"></a-cylinder>
+      <!-- Ваша реальная 3D-модель -->
+      <a-entity gltf-model="#horse-model" position="0 0.2 0" scale="1 1 1" shadow></a-entity>
+    </a-entity>
+
+    <!-- ИНФОРМАЦИОННЫЕ СТЕНДЫ С КИРИЛЛИЦЕЙ -->
+
+    <!-- Стенд 1: Лошадь в центре жизни (Спереди) -->
+    <a-entity position="0 2 -4.8" rotation="0 0 0">
+      <a-plane width="4.2" height="3.2" shadow
+               html-text-plane="title: 1. Лошадь в центре жизни; text: Главная особенность Ботая в том, что хозяйство строилось вокруг лошади. На Ботае кости лошадей составляют более 99% всех костей. Земледелие и привычное скотоводство отсутствовали.|Что давала лошадь:|- Мясо (основа пищи)|- Шкуры и ремни (найдены скребки)|- Кости для орудий|- Вероятно, кобылье молоко">
+      </a-plane>
+    </a-entity>
+
+    <!-- Стенд 2: Одомашнивание (Слева) -->
+    <a-entity position="-4.8 2 0" rotation="0 90 0">
+      <a-plane width="4.2" height="3.2" shadow
+               html-text-plane="title: 2. Одомашнивание; text: Главный спор в археологии (А. Аутрам). Аргументы ЗА:|- Следы удил на зубах|- Жирные кислоты молока в посуде|- Загоны с навозом в ямах|- Строение костей конечностей|Часть ученых считает их охотниками (по мнению многих исследователей).">
+      </a-plane>
+    </a-entity>
+
+    <!-- Стенд 3: Что показала генетика (Справа) -->
+    <a-entity position="4.8 2 0" rotation="0 -90 0">
+      <a-plane width="4.2" height="3.2" shadow
+               html-text-plane="title: 3. Что показала генетика (2018); text: Ботайские лошади — не предки современных домашних. Они — предки лошади Пржевальского (одичавшие потомки). Домашние лошади пошли из Понто-Каспия (~2200 до н.э.). Линия ботайцев оказалась тупиковой.">
+      </a-plane>
+    </a-entity>
+
+    <!-- Стенд 4: Обряды и Значение (Сзади) -->
+    <a-entity position="0 2 4.8" rotation="0 180 0">
+      <a-plane width="4.2" height="3.2" shadow
+               html-text-plane="title: 4. Обряды и Значение; text: Ритуальные ямы с черепами и скелетами (сакрально). Культ лошади у скифов, саков, тюрков.|Степь Северного Казахстана — ключевой узел мировой истории: транспорт, война, торговля и обмен.">
+      </a-plane>
+    </a-entity>
+
+  </a-scene>
+</body>
+</html>
