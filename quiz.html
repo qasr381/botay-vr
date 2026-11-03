@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ece3cf">
+<title>Проверка знаний — Ботай</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bone:#ece3cf; --ink:#2a1d15; --turf:#6f7a3f; --loam:#6a4a2f; --ochre:#8c3f1f; --paper:#f7ecd8; --flag:#f97316;
+          --display:'Alegreya',Georgia,'Times New Roman',serif; --text:'IBM Plex Sans',system-ui,'Segoe UI',sans-serif; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bone); color:var(--ink); font:400 1.05rem/1.5 var(--text); min-height:100vh; min-height:100dvh; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px clamp(16px,5vw,64px); border-bottom:8px solid var(--turf); }
+  header a { color:var(--ink); font:800 1.6rem var(--display); text-decoration:none; }
+  header a small { font:400 .9rem var(--text); margin-left:12px; opacity:.7; }
+  #prog { font-size:.95rem; opacity:.75; }
+  main { max-width:780px; margin:0 auto; padding:clamp(22px,4vw,48px) clamp(16px,5vw,32px) 72px; }
+  h1 { font:800 clamp(2.4rem,7vw,4rem)/1 var(--display); margin-bottom:14px; }
+  .lead { max-width:46ch; margin-bottom:26px; }
+  .q { font:700 clamp(1.45rem,4vw,2.1rem)/1.2 var(--display); margin:16px 0 22px; }
+  .bar { height:6px; background:rgba(42,29,21,.15); }
+  .bar i { display:block; height:100%; background:var(--flag); transition:width .3s; }
+  .t, .opt { display:block; width:100%; text-align:left; font:inherit; color:var(--ink); cursor:pointer;
+             padding:14px 18px; margin:0 0 10px; background:var(--paper); border:2px solid var(--ink); border-radius:3px; }
+  .t { border-left:8px solid var(--loam); } .t:nth-of-type(3n+2) { border-left-color:var(--ochre); } .t:nth-of-type(3n) { border-left-color:var(--turf); }
+  .t b { display:block; font:700 1.3rem var(--display); } .t small { opacity:.7; }
+  .t:hover, .opt:hover:not(:disabled) { background:#fff6e4; }
+  .opt span { display:inline-block; width:1.6em; font-weight:500; }
+  .opt.ok { background:var(--turf); color:var(--paper); border-color:var(--turf); }
+  .opt.bad { background:var(--ochre); color:var(--paper); border-color:var(--ochre); }
+  .opt:disabled { cursor:default; }
+  .btn { font:500 1rem var(--text); padding:13px 24px; border:0; border-radius:3px; background:var(--flag); color:var(--ink); cursor:pointer; margin:10px 10px 0 0; }
+  .btn.alt { background:transparent; border:2px solid var(--ink); }
+  :focus-visible { outline:3px solid var(--flag); outline-offset:2px; }
+  .row { display:grid; gap:8px; padding:14px 16px; margin-bottom:10px; background:var(--paper); border-left:6px solid var(--loam); }
+  .row.ok { border-left-color:var(--turf); } .row.bad { border-left-color:var(--ochre); }
+  .row select, textarea { font:inherit; padding:9px 10px; border:2px solid var(--ink); border-radius:3px; background:#fff; color:var(--ink); width:100%; }
+  textarea { min-height:110px; resize:vertical; }
+  .fb { font-size:.95rem; } .fb.ok { color:var(--turf); font-weight:500; } .fb.bad { color:var(--ochre); font-weight:500; }
+  .score { font:800 clamp(3rem,10vw,5.5rem)/1 var(--display); margin:6px 0 4px; }
+  .mist { padding:12px 16px; margin-bottom:8px; background:var(--paper); border-left:6px solid var(--ochre); }
+  .note { margin-top:18px; font-size:.92rem; opacity:.75; max-width:60ch; }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
+</style>
+</head>
+<body>
+<header><a href="index.html">Ботай<small>В меню</small></a><span id="prog"></span></header>
+<main id="app"></main>
+
+<script src="quiz-data.js"></script>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const app = $('#app'), prog = $('#prog');
+  const sh = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+  let T = null, qs = [], i = 0, pts = 0, tk = 0, wrong = [];
+
+  /* ---------- список тестов ---------- */
+  function home() {
+    T = null; prog.textContent = '';
+    const list = (window.TESTS || []).slice().sort((a, b) => a.n - b.n);
+    app.innerHTML = '<h1>Проверка знаний</h1><p class="lead">Выберите тест. Вопросы и варианты ответов перемешиваются при каждом прохождении.</p>' +
+      list.map((t) => `<button class="t" data-n="${t.n}"><b>Тест ${t.n}. ${esc(t.title)}</b><small>${t.q.length} вопросов${t.task ? ' и задание' : ''}</small></button>`).join('');
+    app.querySelectorAll('.t').forEach((b) => b.onclick = () => start(list.find((t) => t.n == b.dataset.n)));
+  }
+
+  /* ---------- вопросы с одним ответом ---------- */
+  function start(t) {
+    T = t; i = 0; pts = 0; tk = 0; wrong = [];
+    qs = sh(t.q).map(([q, o, a]) => ({ q: q, o: sh(o.map((x, k) => ({ x: x, ok: k === a }))) }));
+    ask();
+  }
+  function ask() {
+    if (i >= qs.length) return task();
+    const q = qs[i];
+    prog.textContent = `Вопрос ${i + 1} из ${qs.length}`;
+    app.innerHTML = `<div class="bar"><i style="width:${i / qs.length * 100}%"></i></div><h2 class="q">${esc(q.q)}</h2>` +
+      q.o.map((o, k) => `<button class="opt" data-k="${k}"><span>${'АБВГДЕ'[k]}.</span>${esc(o.x)}</button>`).join('') + '<div id="nx"></div>';
+    const bs = [...app.querySelectorAll('.opt')];
+    bs.forEach((b) => b.onclick = () => {
+      if (b.disabled) return;
+      const good = q.o[+b.dataset.k].ok;
+      bs.forEach((x, j) => { x.disabled = true; if (q.o[j].ok) x.classList.add('ok'); });
+      if (good) pts++; else { b.classList.add('bad'); wrong.push({ q: q.q, a: q.o.find((o) => o.ok).x }); }
+      $('#nx').innerHTML = '<button class="btn" id="go">Дальше</button>';
+      $('#go').focus(); $('#go').onclick = () => { i++; ask(); };
+    });
+  }
+
+  /* ---------- задание: расстановка, соответствие, отметка + открытый ответ ---------- */
+  function task() {
+    if (!T.task) return done();
+    prog.textContent = 'Задание';
+    T.task.k ? list() : open();
+  }
+  function list() {
+    const t = T.task, n = t.items.length;
+    const items = sh(t.items.map((x, k) => ({ x: x, k: k })));
+    const opts = t.opts ? sh(t.opts.map((x, k) => ({ x: x, k: k }))) : null;
+    const sel = t.k === 'order'
+      ? '<option value="">—</option>' + t.items.map((_, k) => `<option value="${k + 1}">${k + 1}</option>`).join('')
+      : t.k === 'match' ? '<option value="">выберите…</option>' + opts.map((o) => `<option value="${o.k}">${esc(o.x)}</option>`).join('') : '';
+    app.innerHTML = `<h2 class="q">${esc(t.text)}</h2>` +
+      items.map((it) => `<div class="row" data-k="${it.k}"><span>${esc(it.x)}</span>` +
+        (t.k === 'multi' ? '<label><input type="checkbox"> отметить</label>' : `<select aria-label="Ответ">${sel}</select>`) + '<span class="fb"></span></div>').join('') +
+      '<button class="btn" id="chk">Проверить</button>';
+    $('#chk').onclick = () => {
+      let good = 0;
+      app.querySelectorAll('.row').forEach((r) => {
+        const k = +r.dataset.k, el = r.querySelector('select, input');
+        let ok, right;
+        if (t.k === 'multi') { const want = t.key.includes(k); ok = el.checked === want; right = want ? 'отметить' : 'не отмечать'; }
+        else if (t.k === 'order') { ok = +el.value === t.key[k]; right = t.key[k]; }
+        else { ok = el.value !== '' && +el.value === t.key[k]; right = t.opts[t.key[k]]; }
+        if (ok) good++;
+        r.classList.add(ok ? 'ok' : 'bad');
+        r.querySelector('.fb').className = 'fb ' + (ok ? 'ok' : 'bad');
+        r.querySelector('.fb').textContent = ok ? 'Верно' : 'Правильно: ' + right;
+        el.disabled = true;
+      });
+      tk = good / n;
+      $('#chk').outerHTML = `<p class="fb">Верно ${good} из ${n}.</p><button class="btn" id="nx2">Дальше</button>`;
+      $('#nx2').focus(); $('#nx2').onclick = open;
+    };
+  }
+  function open() {
+    const o = T.task && T.task.open;
+    if (!o) return done();
+    app.innerHTML = `<h2 class="q">${esc(o.p)}</h2><textarea id="ans" aria-label="Ваш ответ"></textarea><button class="btn" id="chk">Показать справку</button>`;
+    $('#ans').focus();
+    $('#chk').onclick = () => {
+      const txt = $('#ans').value, hits = (o.words || []).map((w) => new RegExp(w, 'i').test(txt));
+      let fb = '';
+      if (o.words && o.words.length) fb = `<p class="fb ${hits.every(Boolean) ? 'ok' : 'bad'}">Ключевые слова: найдено ${hits.filter(Boolean).length} из ${hits.length}.</p>`;
+      $('#ans').disabled = true;
+      $('#chk').outerHTML = fb + `<div class="mist" style="border-left-color:var(--turf)">${esc(o.ref)}</div><button class="btn" id="fin">Показать результат</button>`;
+      $('#fin').focus(); $('#fin').onclick = done;
+    };
+  }
+
+  /* ---------- результат ---------- */
+  function done() {
+    const max = qs.length + (T.task && T.task.k ? 1 : 0), total = pts + tk, pc = total / max * 100;
+    const msg = pc >= 90 ? 'Отлично. Вы хорошо знаете Ботай.' : pc >= 70 ? 'Хороший результат.' : pc >= 50 ? 'Неплохо. Загляните на экскурсию ещё раз и повторите.' : 'Стоит пройти экскурсию заново и вернуться к тесту.';
+    prog.textContent = '';
+    app.innerHTML = `<p>Тест ${T.n}. ${esc(T.title)}</p><div class="score">${fmt(total)} из ${max}</div><p class="lead">${Math.round(pc)}%. ${msg}</p>` +
+      (wrong.length ? '<h2 class="q">Где были ошибки</h2>' + wrong.map((w) => `<div class="mist"><b>${esc(w.q)}</b><br>Правильно: ${esc(w.a)}</div>`).join('') : '') +
+      (T.task && T.task.open ? '<p class="note">Открытый ответ не оценивается: сравните его со справкой.</p>' : '') +
+      '<button class="btn" id="again">Пройти заново</button><button class="btn alt" id="other">Другой тест</button><a class="btn alt" href="index.html" style="text-decoration:none;display:inline-block">В меню</a>';
+    $('#again').onclick = () => start(T); $('#other').onclick = home;
+  }
+
+  /* клавиши 1–4: выбрать вариант; Enter — дальше */
+  addEventListener('keydown', (e) => {
+    const k = '1234567'.indexOf(e.key);
+    if (k >= 0) { const b = app.querySelectorAll('.opt')[k]; if (b && !b.disabled) b.click(); }
+  });
+
+  home();
+  // вторая часть вопросов подключается сама, если файл есть
+  const s2 = document.createElement('script'); s2.src = 'quiz-data-2.js'; s2.onload = () => { if (!T) home(); };
+  document.head.appendChild(s2);
+</script>
+</body>
+</html>
