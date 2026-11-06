@@ -38,10 +38,10 @@
         return Math.min(segD(px, pz, ax, az, bx, bz), segD(px, pz, bx, bz, cx, cz), segD(px, pz, cx, cz, ax, az));
       }
 
-      const BUILD = '12';
+      const BUILD = '13';
       // Начальная точка и взгляд. yaw в градусах: 0 = смотрим на -Z, 90 = на -X, -90 = на +X, 180 = на +Z.
       // Пол под точкой находится сам. Клавиша K в игре показывает готовую строку для текущего места и взгляда.
-      const SPAWN = { x: 70, z: 37.56, yaw: 90 };
+      const SPAWN = { x: 110.2, z: 37.56, yaw: 90 };
       window.TP_ADJ = 0;   // живая поправка высоты сфер с пятым числом (клавиши U / J)
 
       // виден ли объект (все родители тоже): скрытые сферы не должны срабатывать от взгляда
@@ -453,10 +453,18 @@
           this.terrainEl = document.querySelector(this.data.terrain);
           this.el.object3D.position.set(SPAWN.x, 2, SPAWN.z);
         },
-        teleportTo: function (x, z, yHint) {
+        // «Искусственное» уменьшение игрока в маленьких комнатах: размеры, скорость и прыжок умножаются на k (1 = обычный размер)
+        applyScale: function (k) {
+          const d = this.data, keys = ['rigHeight', 'speed', 'stepUp', 'maxDrop', 'radius', 'bodyH', 'jumpSpeed', 'gravity'];
+          if (!this.k || this.k === 1) { this.base = {}; keys.forEach((n) => { this.base[n] = d[n]; }); }
+          this.k = k;
+          keys.forEach((n) => { d[n] = this.base[n] * k; });
+        },
+        teleportTo: function (x, z, yHint, k) {
           const now = performance.now();
           if (this.tpLock && now < this.tpLock) return;   // защита от дребезга
           this.tpLock = now + 2000;
+          this.applyScale(k === undefined ? 1 : k);
           const w = this.terrainEl.components['collision-world'];
           if (yHint === undefined) yHint = 1e6;           // без подсказки — самая верхняя поверхность
           const f = w.floorNear(x, z, yHint);
@@ -573,7 +581,8 @@
       // Конвертация из Blender: A-Frame (x, y, z) = Blender (x, z, -y)
       const TP_DATA = {
         'у_1к': [-190.80, -9.30, -54.90, '1к_у'],       // улица -> здание 1
-        '1к_у': [228.93, -5.15, -290.05, 'у_1к'],       // здание 1 -> улица (куб передвинут в Blender)
+        '1к_у': [219.07, -14.80, -308.91, 'у_1к', undefined, -15.8],   // здание 1 -> улица; точка внутри комнаты, пол -15.8 (раньше садило на крышу)
+        'новая_1': [38.60, -11.72, -66.81, null],       // новая точка, пол -12.72; куда ведёт — пока не задано
         '2к_3к': [141.10, -10.94, -395.07, '3к_2к'],   // перенесён на координаты со скрина (пол -11.94, куб на 1 выше)
         '2к_4к': [186.90, -8.96, -425.75, '4к_2к'],
         '2к_5к': [145.71, -9.69, -435.61, '5к_2к'],
@@ -582,8 +591,8 @@
         '5к_2к': [49.41, 2.02, -1172.10, '2к_5к'],      // 2.02 из Blender (в старом .glb было 5.4)
         '5к_6к': [27.97, 6.08, -1192.10, '6к_5к'],
         '5к_7к': [78.04, 2.54, -1192.50, '7к_5к'],
-        '6к_5к': [-1204.60, -1.88, -95.38, '5к_6к', -4, -6.3],   // сдвиг по Blender-Y на +14   // 5-й: высота центра сферы над полом (0 = на полу, минус = в пол); 6-й: примерная высота пола (ищем слой пола ближе всего к ней)
-        '7к_5к': [-1344.00, -1.88, -95.38, '5к_7к', -4, -6.3]   // тот же сдвиг, что у 6к_5к
+        '6к_5к': [-1204.60, -1.88, -95.38, '5к_6к', 0, -8.8, 0.1667],   // 5-й: высота сферы над полом; 6-й: высота пола; 7-й: масштаб игрока в комнате (1/6 → рост 2,5)   // 5-й: высота центра сферы над полом (0 = на полу, минус = в пол); 6-й: примерная высота пола (ищем слой пола ближе всего к ней)
+        '7к_5к': [-1344.00, -1.88, -95.38, '5к_7к', 0, -8.8, 0.1667]
       };
       // подпись над сферой = куда ведёт (по первой части имени парного куба). Впиши свои названия:
       const TP_LABEL = { 'у': 'Улица', '1к': 'Здание 1', '2к': 'Здание 2', '3к': 'Здание 3', '4к': 'Здание 4', '5к': 'Здание 5', '6к': 'Здание 6', '7к': 'Здание 7' };
@@ -636,7 +645,8 @@
             const p = TP_DATA[id], to = p[3];
             const g = document.createElement('a-entity');
             const rel = p[4] !== undefined;   // 5-й элемент: высота центра сферы над реальным полом (подбирается после загрузки)
-            g.setAttribute('position', `${p[0]} ${p[1] + (rel ? p[4] : d.height)} ${p[2]}`);
+            g.setAttribute('position', `${p[0]} ${p[1] + (rel ? p[4] * (p[6] || 1) : d.height)} ${p[2]}`);
+            if (p[6]) g.setAttribute('scale', `${p[6]} ${p[6]} ${p[6]}`);   // в маленьких комнатах сфера и подпись тоже уменьшаются
             if (rel) this.pending.push({ g: g, p: p });
             g.setAttribute('los-hide', `maxDist: ${d.maxDist}`);
 
@@ -650,11 +660,11 @@
               if (!shown(s)) return;
               const T = TP_DATA[to];
               if (!T) return;
-              document.querySelector('#player').components['player-controls'].teleportTo(T[0], T[2], T[5] !== undefined ? T[5] : T[1] - 1);
+              document.querySelector('#player').components['player-controls'].teleportTo(T[0], T[2], T[5] !== undefined ? T[5] : T[1] - 1, T[6]);
             });
             g.appendChild(s);
 
-            const name = TP_LABEL[to.split('_')[0]] || to;
+            const name = to ? (TP_LABEL[to.split('_')[0]] || to) : 'скоро';
             const t = document.createElement('a-text');
             t.setAttribute('value', `→ ${name}\n(задержите взгляд)`);
             t.setAttribute('position', `0 ${d.radius + 3} 0`);
@@ -682,7 +692,7 @@
           const f = w.floorNear(it.p[0], it.p[2], it.p[5] !== undefined ? it.p[5] : it.p[1] - 1);
           if (f) {
             it.floorY = f.y;
-            it.g.object3D.position.set(it.p[0], f.y + it.p[4] + window.TP_ADJ, it.p[2]);
+            it.g.object3D.position.set(it.p[0], f.y + it.p[4] * (it.p[6] || 1) + window.TP_ADJ, it.p[2]);
             this.placed.push(it);
           }
         }
