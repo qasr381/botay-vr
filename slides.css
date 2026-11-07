@@ -53,6 +53,7 @@ body { display:flex; flex-direction:column; height:100vh; height:100dvh; overflo
   background:radial-gradient(ellipse at 50% 40%, #fff7e6 0%, var(--bone) 55%, #d9c9a5 100%); }
 .viewer .note { position:absolute; left:16px; bottom:10px; font-size:.85rem; opacity:.7; pointer-events:none; }
 .viewer .load { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+.viewer .load[hidden] { display:none; }
 
 @media (max-width:640px) {
   body { font-size:1rem; } .mark { font-size:1.35rem; } #count { display:none; } .arrow { width:60px; }
